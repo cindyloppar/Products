@@ -3,26 +3,40 @@ const app = express();
 const qs = require("qs");
 const request = require("request");
 const bodyParser = require('body-parser')
+const Storage = require('node-localstorage');
 
 var getRequestToken = require('./src/twitter/get-request-token.js');
 
 app.use(express.static('public'));
-app.use(bodyParser.urlencoded({extended:false}));
+app.use(bodyParser.urlencoded({ extended: false }));
 
 var users = [];
 
-function signup(name,email,password){
+function signup(name, email, password) {
   //todo: check if user exists and throw if does
-  users.push({name, email, password});
+  users.push({ name, email, password });
   //node-localstorage
+
+  if (typeof localStorage === "undefined" || localStorage === null) {
+
+    var LocalStorage = require('node-localstorage').LocalStorage;
+    localStorage = new LocalStorage('./scratch');
+  }
+  localStorage.setItem('name', name);
+  localStorage.setItem('email', email);
+  localStorage.setItem('password', password);
+  console.log(localStorage.getItem('name'));
+  console.log(localStorage.getItem('email'));
+  console.log(localStorage.getItem('password'));
+  console.log(users);
 }
 
-function getUser(email, password){
+function getUser(email, password) {
   //node-localstorage
   return users.find((u) => u.email == email && u.password == password);
 }
 
-app.post("/signup", function(request,response){
+app.post("/signup", function (request, response) {
   var signupDetails = request.body;
   //1. we need to save this somewhere
   //2. we need to check if the user already exists
@@ -36,17 +50,20 @@ app.post("/signup", function(request,response){
   users.push(signupDetails);
 });
 
-app.get("/login", function(request,response){
+app.get("/login", function (request, response) {
   const email = request.query.email;
   const password = request.query.password;
 
   const user = getUser(email, password);
 
-  if (user){
+  if (user) {
     response.status(200).end();
-  }else{
+    window.location("/authorize/twitter");
+  } else {
+    alert("user not found");
     response.status(401).end();
   }
+
 });
 
 
@@ -67,8 +84,8 @@ app.get("/authorize/twitter", (req, res) => {
     // and it's the client's responsibility to do the redirect
     res.send(
       "<a href='https://api.twitter.com/oauth/authorize?oauth_token=" +
-        data.oauth_token +
-        "'>Authorize Twitter</a>"
+      data.oauth_token +
+      "'>Authorize Twitter</a>"
     );
   }
 
@@ -84,7 +101,7 @@ app.get("/twitter/callback", (req, res) => {
     tokenDetails.oauth_token,
     (err, data) => {
       if (err) {
-          console.log("error when getting access token", err);
+        console.log("error when getting access token", err);
         res.send(
           "<h1>Something went wrong while giving access, please try again.</h1>"
         );
@@ -93,7 +110,7 @@ app.get("/twitter/callback", (req, res) => {
 
         //tweet("Theo Just authorized the StatusWave app",data.oauth_token, data.oauth_token_secret);
 
-        res.json({success:true});
+        res.json({ success: true });
 
         res.send("<h1>congrats, you have authorized us</h1>");
       }
@@ -102,6 +119,10 @@ app.get("/twitter/callback", (req, res) => {
 });
 
 function getAccessToken(oauthVerifier, oauthToken, cb) {
+  const config = {
+    consumerKey: "Rz63spEaepbrHThkMtr5TJgFj",
+    consumerSecret: "1hir1CnQKcH5Ma27EvorqqvRI8vi5F1lgO3jbsTVgM70qB5YII"
+  }
   var oauth = {
     consumer_key: config.consumerKey,
     consumer_secret: config.consumerSecret,
@@ -113,7 +134,7 @@ function getAccessToken(oauthVerifier, oauthToken, cb) {
       oauth: oauth,
       qs: { oauth_verifier: oauthVerifier }
     },
-    function(error, response, body) {
+    function (error, response, body) {
       if (error) {
         console.log(error);
         cb(error);
@@ -148,7 +169,7 @@ function tweet(message, token, tokenSecret) {
     qs: { status: message }
   };
 
-  request.post(options, function(err, httpResponse, body) {
+  request.post(options, function (err, httpResponse, body) {
     console.log("http response code", httpResponse.statusCode);
     console.log("http response body", httpResponse.body);
 
